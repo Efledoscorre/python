@@ -8,7 +8,6 @@ class PaisInfo:
     def carregar_dados(self, dataset_path):
         try:
             data = pd.read_csv(dataset_path)
-
             data.columns = data.columns.str.replace('\n', '', regex=False)
             data.columns = data.columns.str.strip()
             print("Dados carregados com sucesso!")

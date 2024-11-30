@@ -1,122 +1,100 @@
+import pandas as pd
+from sklearn.metrics.pairwise import cosine_similarity
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from sklearn.metrics import accuracy_score
-import pandas as pd
 
 class ModeloRecomendacao(nn.Module):
     def __init__(self, input_dim):
-        """
-        Inicializa o modelo e define a arquitetura.
-        :param input_dim: Número de entradas (features do dataset).
-        """
         super(ModeloRecomendacao, self).__init__()
-        self.input_dim = input_dim
-        self.modelo = self._criar_modelo()
-
-    def _criar_modelo(self):
-        """
-        Cria o modelo neural.
-        :return: Modelo PyTorch.
-        """
-        return nn.Sequential(
-            nn.Linear(self.input_dim, 64),  # Primeira camada oculta
+        self.modelo = nn.Sequential(
+            nn.Linear(input_dim, 64),
             nn.ReLU(),
-            nn.Linear(64, 32),  # Segunda camada oculta
+            nn.Linear(64, 32),
             nn.ReLU(),
             nn.Linear(32, 16),
             nn.ReLU(),
-            nn.Linear(16 , 1),
-            nn.ReLU(),
-            nn.Sigmoid()  # Função de ativação para classificação binária
+            nn.Linear(16, 1),
+            nn.Sigmoid()
         )
 
     def forward(self, x):
         return self.modelo(x)
 
     def treinar(self, X_train, y_train, epochs=10, batch_size=16, learning_rate=0.001):
-
-        # Converter dados para tensores PyTorch
         X_train = torch.tensor(X_train, dtype=torch.float32)
         y_train = torch.tensor(y_train, dtype=torch.float32).view(-1, 1)
 
-        # Definir função de perda e otimizador
-        criterio = nn.BCELoss()  # Binary Cross Entropy Loss para classificação binária
+        criterio = nn.BCELoss()
         otimizador = optim.Adam(self.parameters(), lr=learning_rate)
 
-        # Loop de treinamento
         self.train()
         for epoca in range(epochs):
             for i in range(0, len(X_train), batch_size):
-                # Dividir os dados em batches
                 X_batch = X_train[i:i + batch_size]
                 y_batch = y_train[i:i + batch_size]
 
-                # Forward pass
                 previsoes = self.forward(X_batch)
                 perda = criterio(previsoes, y_batch)
 
-                # Backward pass e atualização dos pesos
                 otimizador.zero_grad()
                 perda.backward()
                 otimizador.step()
 
-            # Mostrar perda ao final de cada época
             print(f"Época [{epoca + 1}/{epochs}], Perda: {perda.item():.4f}")
 
     def avaliar(self, X_test, y_test):
-
-        # Converter dados para tensores PyTorch
         X_test = torch.tensor(X_test, dtype=torch.float32)
         y_test = torch.tensor(y_test, dtype=torch.float32).view(-1, 1)
 
-        # Desabilitar gradientes para avaliação
         self.eval()
         with torch.no_grad():
             previsoes = self.forward(X_test)
-            previsoes_binarias = (previsoes >= 0.5).float()  # Threshold para binário (>= 0.5 = 1, senão 0)
+            previsoes_binarias = (previsoes >= 0.5).float()
 
-        # Calcular acurácia
         acuracia = accuracy_score(y_test.numpy(), previsoes_binarias.numpy())
-        print(f"Acurácia do modelo: {acuracia:.2f}")
+        print(f"Acurácia: {acuracia:.2f}")
 
-    def recomendar(self, pais_escolhido, dados, colunas_numericas):
+def recomendar_paises(modelo, pais_escolhido, dados, colunas_numericas, pesos):
+    """
+    Faz recomendações de países similares com base no país escolhido.
+    :param modelo: Modelo treinado.
+    :param pais_escolhido: Nome do país escolhido pelo usuário.
+    :param dados: DataFrame contendo os dados do dataset.
+    :param colunas_numericas: Colunas numéricas utilizadas no modelo.
+    :param pesos: Pesos ajustados para as colunas.
+    """
+    # Verificar se o país existe nos dados (utilizando correspondência parcial)
+    pais_info = dados[dados['Country'].str.contains(pais_escolhido, case=False, na=False)]
 
-        # Verificar se o país existe nos dados
-        if pais_escolhido not in dados['Country'].values:
-            print(f"País '{pais_escolhido}' não encontrado no dataset.")
-            return
+    if pais_info.empty:
+        print(f"País '{pais_escolhido}' não encontrado no dataset.")
+        return None  # Retorna None caso não encontre o país
 
-        # Obter os dados do país escolhido
-        dados_pais = dados[dados['Country'] == pais_escolhido][colunas_numericas].values
-        dados_pais_tensor = torch.tensor(dados_pais, dtype=torch.float32)
+    # Obter os dados do país escolhido (utilizando a correspondência)
+    pais_escolhido = pais_info.iloc[0]['Country']  # Caso haja mais de um resultado, pega o primeiro
+    dados_pais = pais_info[colunas_numericas].values.flatten()  # Garantir que seja um array 1D
 
-        # Calcular a distância com todos os países
-        self.eval()
-        with torch.no_grad():
-            distancias = torch.cdist(
-                dados_pais_tensor,
-                torch.tensor(dados[colunas_numericas].values, dtype=torch.float32)
-            )
+    # Substituir valores NaN por 0
+    dados_pais = pd.Series(dados_pais).fillna(0).values
 
-        # Ordenar por similaridade
-        indices_similares = distancias.argsort().numpy()[0][:5]
-        recomendacoes = dados.iloc[indices_similares]['Country'].values
+    # Aplicar os pesos às características do país escolhido
+    dados_pais_ponderados = dados_pais * list(pesos.values())
 
-        # Mostrar os países recomendados
-        print(f"Países similares ao '{pais_escolhido}': {', '.join(recomendacoes)}")
+    # Calcular a similaridade entre o país escolhido e todos os outros países
+    similaridades = []
+    for index, row in dados.iterrows():
+        pais_dados = row[colunas_numericas].values.flatten()  # Garantir que seja um array 1D
+        pais_dados = pd.Series(pais_dados).fillna(0).values  # Substituir valores NaN por 0
+        pais_dados_ponderados = pais_dados * list(pesos.values())
+        similaridade = cosine_similarity([dados_pais_ponderados], [pais_dados_ponderados])[0][0]
+        similaridades.append((row['Country'], similaridade))
 
-# Exemplo de uso
-if __name__ == "__main__":
-    # Dados de exemplo (substitua com seus dados reais)
-    X_train = [[25, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] for i in range(100)]
-    y_train = [[1] for i in range(100)]
-    X_test = [[30, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] for i in range(10)]
-    y_test = [[0] for i in range(10)]
+    # Ordenar os países com base na similaridade
+    similaridades.sort(key=lambda x: x[1], reverse=True)
 
+    # Retornar os países mais semelhantes
+    recomendacoes = [pais for pais, _ in similaridades[1:6]]  # Excluindo o próprio país escolhido
 
-
-
-    modelo = ModeloRecomendacao(input_dim=30)
-    modelo.treinar(X_train, y_train)
-    modelo.avaliar(X_test, y_test)
+    return recomendacoes
