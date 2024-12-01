@@ -6,17 +6,25 @@ from ModeloRecomendacao import ModeloRecomendacao, recomendar_paises
 from PaisInfo import PaisInfo
 
 
-
-
 def main():
+    """
+    Função principal para executar o sistema de recomendação de países.
+
+    O sistema carrega os dados de um arquivo CSV contendo informações sobre países,
+    calcula os pesos ajustados para diversas características, treina um modelo de
+    recomendação e, finalmente, fornece recomendações com base no país escolhido pelo
+    usuário.
+    """
+
+
     caminho_arquivo_csv = 'C:\\Users\\lucas\\PycharmProjects\\pythonProject1\\world-data-2023.csv'  # Defina o caminho correto para o arquivo CSV
     gerenciador = GerenciadorDados(caminho_arquivo_csv)
     gerenciador.carregar_dados()
 
-    # Criando instância da classe PaisInfo
+
     pais_info = PaisInfo(caminho_arquivo_csv)
 
-    # Pesos ajustados para as colunas
+
     pesos = {
         'Land Area(Km2)': 0.1,
         'Armed Forces size': 0.2,
@@ -51,46 +59,46 @@ def main():
         'Longitude': 0.1
     }
 
-    # Calcular o peso total
+
     gerenciador.calcular_peso_total(pesos)
 
-    # Mostrar os dados com o peso total calculado
+
     gerenciador.mostrar_dados()
 
-    # Preparar os dados para treinamento
+
     X = gerenciador.data[gerenciador.colunas_numericas].fillna(0).values
     y = gerenciador.data['peso_total'].values
 
-    # Normalizar os dados
+
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
 
-    # Normalizar os valores do alvo para classificação binária (exemplo: "alta expectativa" = 1, "baixa" = 0)
+
     y = (y >= y.mean()).astype(int)
 
-    # Dividir os dados em treino e teste
+
     X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
 
-    # Treinar o modelo
+
     modelo = ModeloRecomendacao(X_train.shape[1])
     modelo.treinar(X_train, y_train, epochs=100)
 
-    # Avaliar o modelo
+
     modelo.avaliar(X_test, y_test)
 
-    # Entrada do usuário para o país escolhido
-    pais_escolhido = input("Digite o nome do país para ver as recomendações: ")
 
-    # Obter as recomendações de países
+    pais_escolhido = input("Digite o nome do país (em inglês) para ver as recomendações: ")
+
+
     recomendacoes = recomendar_paises(modelo, pais_escolhido, gerenciador.data, gerenciador.colunas_numericas, pesos)
 
-    # Exibir as recomendações, se houver
+
     if recomendacoes is not None:
         print(f"Países recomendados para '{pais_escolhido}': {', '.join(recomendacoes)}")
     else:
         print("Nenhuma recomendação disponível.")
 
-    # Exibir as informações sobre o país escolhido
+
     latitude, longitude = pais_info.mostrar_pais(pais_escolhido)
     if latitude is not None and longitude is not None:
         print(f"\nCoordenadas de {pais_escolhido}: Latitude {latitude}, Longitude {longitude}")

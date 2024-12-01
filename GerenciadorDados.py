@@ -7,7 +7,11 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
 class GerenciadorDados:
+
     def __init__(self, caminho_arquivo_csv):
+        """
+        Guarda todas as colunas do csv
+        """
         self.caminho_arquivo_csv = caminho_arquivo_csv
         self.data = None
         self.colunas_numericas = [
@@ -26,23 +30,30 @@ class GerenciadorDados:
             'Urban_population', 'Latitude', 'Longitude'
         ]
 
-    def carregar_dados(self):
-        """Carregar dados a partir de um arquivo CSV"""
-        self.data = pd.read_csv(self.caminho_arquivo_csv)
 
-        # Converte colunas numéricas para o formato correto
+    def carregar_dados(self):
+        """
+        Carregar dados a partir de um arquivo CSV
+        """
+
+        self.data = pd.read_csv(self.caminho_arquivo_csv)
         for col in self.colunas_numericas:
             if col in self.data.columns:
                 self.data[col] = pd.to_numeric(self.data[col], errors='coerce')
 
+
     def calcular_peso_total(self, pesos):
-        """Calcular o peso total de cada país com base nos pesos fornecidos"""
+        """
+        Calcular o peso total de cada país com base nos pesos fornecidos
+        """
         if not self.data.empty:
-            # Multiplicar as colunas numéricas pelos pesos e somar
             self.data['peso_total'] = self.data[self.colunas_numericas].mul(list(pesos.values()), axis=1).sum(axis=1)
         else:
             print("Erro: Dados não carregados.")
 
+
     def mostrar_dados(self):
-        """Exibir as primeiras linhas dos dados"""
+        """
+        Exibir as primeiras linhas dos dados
+        """
         print(self.data.head())

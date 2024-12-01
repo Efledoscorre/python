@@ -1,11 +1,16 @@
 import pandas as pd
 
+
 class PaisInfo:
     def __init__(self, dataset_path):
         print("Carregando os dados do CSV...")
         self.data = self.carregar_dados(dataset_path)
 
+
     def carregar_dados(self, dataset_path):
+        """
+        Carrega os dados do csv e retorna pro usuario se deu certo ou erro
+        """
         try:
             data = pd.read_csv(dataset_path)
             data.columns = data.columns.str.replace('\n', '', regex=False)
@@ -19,7 +24,11 @@ class PaisInfo:
             print(f"Erro ao carregar os dados: {e}")
             return None
 
+
     def mostrar_pais(self, pais):
+        """
+        Mostra as informações do país, retornando todas as tabelas do própio
+        """
         pais = pais.strip()
         pais_info = self.data[self.data['Country'].str.contains(pais, case=False, na=False)]
 
